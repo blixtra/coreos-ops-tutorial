@@ -111,7 +111,7 @@ docker run -t -i busybox /bin/sh -c 'nc <eth0-ip>:80'
 
 ---
 
-# Logging with logentires.com
+# Logging with logentries.com
 
 ```
 etcdctl --no-sync set /logentries.com/token <token>
