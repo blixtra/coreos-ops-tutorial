@@ -43,7 +43,7 @@ export FLEETCTL_TUNNEL="<control-external-ip>"
 ### Update configs
 
 ```
-sed -i "" -e 's/CONTROL-NODE-INTERNAL-IP/<control-internal-ip>/g' *
+sed -i "" -e 's/CONTROL-NODE-INTERNAL-IP/<control-internal-ip>/g' *.{json,yaml,service}
 ```
 
 ### Cluster Configuration
