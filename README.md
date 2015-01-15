@@ -2,12 +2,19 @@
 
 # Pre-requisites
 
-Command line tools:
+Build etcdctl and fleetctl:
 
 ```
-go get github.com/GoogleCloudPlatform/kubernetes/cmd/kubecfg
 go get github.com/coreos/etcd/etcdctl
 go get github.com/coreos/fleet/fleetctl
+```
+
+Build kubecfg:
+
+```
+git clone https://github.com/GoogleCloudPlatform/kubernetes
+make
+cp ./_output/local/bin/darwin/amd64/kubecfg ~/bin
 ```
 
 Google Cloud SDK: https://cloud.google.com/sdk/
