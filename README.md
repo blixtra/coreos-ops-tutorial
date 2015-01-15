@@ -1,5 +1,17 @@
 # Core Ops Tutorial
 
+# Pre-requisites
+
+Command line tools:
+
+```
+go get github.com/GoogleCloudPlatform/kubernetes/cmd/kubecfg
+go get github.com/coreos/etcd/etcdctl
+go get github.com/coreos/fleet/fleetctl
+```
+
+Google Cloud SDK: https://cloud.google.com/sdk/
+
 # Provisioning CoreOS, etcd, fleet, and flannel
 
 ## Control Node
