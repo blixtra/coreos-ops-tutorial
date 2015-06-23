@@ -14,7 +14,7 @@ Build kubecfg:
 ```
 git clone https://github.com/GoogleCloudPlatform/kubernetes
 make
-cp ./_output/local/bin/darwin/amd64/kubecfg ~/bin
+cp ./_output/local/bin/darwin/amd64/kubectl ~/bin
 ```
 
 Google Cloud SDK: https://cloud.google.com/sdk/
