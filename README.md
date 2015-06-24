@@ -9,293 +9,173 @@ go get github.com/coreos/etcd/etcdctl
 go get github.com/coreos/fleet/fleetctl
 ```
 
-Build kubecfg:
+## Setting up a CoreOS cluster using Vagrant
+
+We'll use Vagrant to set up a local CoreOS cluster with 3 nodes.
+
+### Fetch and enter the repository
 
 ```
-git clone https://github.com/GoogleCloudPlatform/kubernetes
-make
-cp ./_output/local/bin/darwin/amd64/kubectl ~/bin
+git clone https://github.com/blixtra/coreos-vagrant.git
+cd coreos-vagrant
 ```
 
-Google Cloud SDK: https://cloud.google.com/sdk/
-
-# Provisioning CoreOS, etcd, fleet, and flannel
-
-## Control Node
+### Modify the cloud-init
 
 ```
-gcloud compute instances create control \
---image-project coreos-cloud \
---image coreos-alpha-494-0-0-v20141108 \
---boot-disk-size 200GB \
---machine-type n1-standard-1 \
---can-ip-forward \
---scopes compute-rw \
---metadata-from-file user-data=control.yaml \
---zone us-central1-a
+cp user-data.sample user-data
+cp config.rb.sample config.rb
 ```
 
-### Setup Client SSH Tunnels
+For the user-data file, we need to replace the "<token>" placeholder with the discovery token obtian via the following command.
 
 ```
-gcloud compute instances list
+curl -w "\n" 'https://discovery.etcd.io/new?size=3'
 ```
 
-#### etcd
+You'll see here that we've specified the size of the cluster. This size is also what we need to enter at the top of the config.rb file.
+
+Now we can start the cluster
 
 ```
-ssh -f -nNT -L 4001:127.0.0.1:4001 core@<control-external-ip>
+vagrant up
+vagrant status
 ```
 
-#### kubernetes
+should give us something like this
 
 ```
-ssh -f -nNT -L 8080:127.0.0.1:8080 core@<control-external-ip>
+Current machine states:
+
+core-01                   running (virtualbox)
+core-02                   running (virtualbox)
+core-03                   running (virtualbox)
+
+This environment represents multiple VMs. The VMs are all listed
+above with their current state. For more information about a specific
+VM, run 'vagrant status NAME'.
 ```
 
-#### fleet
+We should have 3 CoreOS instances running and they should be aware of each other.
+
+Before we start exploring, we'll need the IP address of one of the nodes in the cluster.
 
 ```
-export FLEETCTL_TUNNEL="<control-external-ip>"
+vagrant ssh core-01
 ```
 
-### Update configs
+Now that we're in the box we can get the IP address.
 
 ```
-sed -i -e 's/CONTROL-NODE-INTERNAL-IP/<control-internal-ip>/g' *.{json,yaml,service}
+ifconfig
 ```
 
-### Cluster Configuration
+Mine is 172.17.8.101
 
-#### flannel
+# Exploring
 
-```
-etcdctl --no-sync set /coreos.com/network/config '{"Network":"10.244.0.0/16"}'
-```
-
-## Worker Nodes
+Let's set up a couple environment variables
 
 ```
-gcloud compute instances create node1 node2 node3 node4 node5 \
---image-project coreos-cloud \
---image coreos-alpha-494-0-0-v20141108 \
---boot-disk-size 200GB \
---machine-type n1-standard-1 \
---can-ip-forward \
---metadata-from-file user-data=node.yaml \
---zone us-central1-a
+# Note: this works in a fish shell
+set -x FLEETCTL_ENDPOINT http://172.17.8.101:4001
+set -x ETCDCTL_PEERS 172.17.8.101:4001
 ```
 
-```
-gcloud compute instances list
-```
+Let's take a look at our machines
 
 ```
 fleetctl list-machines
 ```
 
----
-
-# Cross container networking with flannel
-
-## View the subnet allocations in etcd 
+This will give us a list of all the machines in our cluster.
 
 ```
-etcdctl --no-sync ls / --recursive
+MACHINE     IP            METADATA
+2c337019... 172.17.8.102  -
+ada3f69c... 172.17.8.101  -
+e530512e... 172.17.8.103  -
 ```
 
-## Communicate between two containers
+## etcd
 
-### Terminal 1
-
-```
-gcloud compute ssh core@node1
-```
+Creating a dir
 
 ```
-docker run -t -i busybox /bin/sh -c 'ifconfig eth0 && nc -l -p 80'
+etcdctl mkdir /test
 ```
 
-### Terminal 2
+Setting a value
 
 ```
-gcloud compute ssh core@node2
+etcdctl set /test/hello "Hello World!"
 ```
 
-Replace eth0-ip with the ip address from above.
+This key is now available from all nodes
+
+You can run the following from another node to see the key change as it happens.
 
 ```
-docker run -t -i busybox /bin/sh -c 'nc <eth0-ip>:80'
+etcdctl watch /test/hello
 ```
 
----
+## fleet
 
-# Logging with logentries.com
+# Deploying a simple unit
 
-```
-etcdctl --no-sync set /logentries.com/token <token>
-```
+We've got a very simple unit file available called hello.service
 
 ```
-fleetctl start journal-2-logentries.service
-```
-
-```
+fleetctl submit hello.service
+fleetctl list-unit-files
 fleetctl list-units
 ```
 
----
+We've not submitted the unit files but there's it's noe on a machine yet.
 
-# Sysadmin tools with Toolbox
-
-## Terminal 1
+Let's now schedule it onto a machine
 
 ```
-gcloud compute ssh core@node1
+fleetctl load hello.service
+
 ```
+
+It's still not running yet, though. Let's change that.
+
+```
+fleetctl start hello.service
+```
+
+# Deploying multiple instances
+
+We do the above but use a templated unit file
+
+```
+fleetctl submit hello@.service
+```
+
+Now we can load multiple instances using the same unit file
+
+```
+fleetctl start hello@1.service
+fleetctl start hello@2.service
+```
+
+# Running Global units
+
+Often we want to run a service on each host. This is done using the Global-True X-Fleet option in the unit file.
+
+
+```
+fleetctl start global.service
+```
+
+## Debugging tools
 
 ```
 /usr/bin/toolbox
 ```
 
 ```
-yum install tcpdump
-```
-
-```
-ip addr show flannel0
-```
-
-```
-tcpdump -i flannel0
-```
-
-## Terminal 2
-
-```
-gcloud compute ssh core@node2
-```
-
-```
-ping <node1-flannel0-ip>
-```
-
----
-
-# Kubernetes
-
-## Installing Kubernetes with fleet
-
-```
-fleetctl start kube-kubelet.service 
-fleetctl start kube-proxy.service
-fleetctl start kube-apiserver.service
-fleetctl start kube-controller-manager.service
-fleetctl start kube-scheduler.service
-fleetctl start kube-register.service
-```
-
-```
-fleetctl list-units
-```
-
-```
-kubecfg list minions
-```
-
-## Deploying applications
-
-### Creating a replicationController
-
-```
-cat hello-stable-controller.json
-```
-
-```
-kubecfg -c hello-stable-controller.json create replicationControllers
-```
-
-```
-kubecfg list replicationControllers
-kubecfg list pods
-```
-
-### Horizontally scaling pods
-
-Edit: hello-stable-controller.json
-
-```
-"replicas": 4
-```
-
-#### Update the replication controller
-
-```
-kubecfg -c hello-stable-controller.json update replicationControllers/helloStableController
-```
-
-```
-kubecfg list pods
-```
-
-### Creating and managing services
-
-```
-cat hello-service.json
-```
-
-```
-kubecfg -c hello-service.json create services
-```
-
-```
-gcloud compute firewall-rules create default-allow-hello --allow tcp:80
-```
-
-```
-gcloud compute instances list
-```
-
-## Rolling Updates
-
-### Send the Canary
-
-```
-cat hello-canary-controller.json 
-```
-
-```
-kubecfg -c hello-canary-controller.json create replicationControllers
-```
-
-```
-kubecfg list pods
-```
-
-```
-gcloud compute instances list
-```
-
-```
-while true; do curl http://<node-external-ip>; echo; sleep 2; done
-```
-
-### Rolling Update
-
-#### Terminal 1
-
-```
-while true; do curl http://<node-external-ip>; echo; sleep 2; done
-```
-
-#### Terminal 2
-
-```
-kubecfg --image "quay.io/kelseyhightower/hello:2.0.0" rollingupdate helloStableController
-```
-
-#### Terminal 3
-
-```
-watch kubecfg list pods
+yum install htop
 ```
