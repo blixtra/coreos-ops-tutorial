@@ -1,0 +1,18 @@
+[Unit]
+Description=MyGlobalApp
+After=docker.service
+Requires=docker.service
+
+[Service]
+TimeoutStartSec=0
+ExecStartPre=-/usr/bin/docker kill busyboxGlobal
+ExecStartPre=-/usr/bin/docker rm busyboxGlobal
+ExecStartPre=/usr/bin/docker pull busyboxGlobal
+ExecStart=/usr/bin/docker run --name busyboxGlobal busyboxGlobal /bin/sh -c "while true; do echo Global Player; sleep 1; done"
+ExecStop=/usr/bin/docker stop busyboxGlobal
+
+[Install]
+WantedBy=multi-user.target
+
+[X-Fleet]
+Global=True
