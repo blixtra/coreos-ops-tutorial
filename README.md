@@ -1,5 +1,7 @@
 # Core Ops Tutorial
 
+Here are the [DevOps Days Amsterdam slides](https://docs.google.com/presentation/d/1I6YMzbi_Z6CdJin5BvK7PYX-k19meY8lvIYczDxhqnc/pub?start=false&loop=false&delayms=3000)
+
 # Pre-requisites
 
 Build etcdctl and fleetctl:
